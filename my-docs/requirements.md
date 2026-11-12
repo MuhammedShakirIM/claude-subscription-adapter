@@ -1,8 +1,0 @@
-Look at /Users/shakir/projects/projekts-litellm-v1 . It has specially implementation (custom) for claude code cli provider. I intend to replicate entire custom implementation (its my own code - so we can copy all that we need) and create a light weight python library for pypi and making it free for all those who want to convert the claude code subscription to Open API standards such that any other python application and langchain based application can simply use it to make LLM Calls as if it is making API calls.  The client python and/or langchain application along with tool calls must work as same as it wuld work if it was a direct API (pay per token) calls. 
-
-
-I want you give me a plan to migrate the code from the given source and once I review the document, I want you to migrate the code for me such that it works as intended. In short - no reinventing the wheel - copy the required code from the source but making sure it is retrofitted as a new light weight python library that can  be installed using uv command or uv tool  - which ever is best and the right way. It must start the server exposing http:/localhost:9001 (default port must be configurable). The client application must be able to specify the model it want to use. 
-
-Note : All tool calls set by the application  must work. The pure python application, langchain and langgraph applications must also work. 
-
-Prepare the architecture.md first in /Users/shakir/projects/claude-subscription-adapter/project-docs
