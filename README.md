@@ -77,7 +77,7 @@ Command-line flags take precedence over environment variables. Run one server wo
 | `CSA_API_KEY` | Unset | Optional bearer token for chat, model, and readiness routes. Health and OpenAPI stay public. |
 | `CSA_MODELS` | `{}` | JSON object mapping public aliases to Claude Code model IDs. Unlisted models pass through; an empty object advertises no models. |
 
-For example, `CSA_MODELS='{"fast":"claude-haiku-4-5"}'` advertises `fast` while sending `claude-haiku-4-5` to the CLI.
+For example, `CSA_MODELS='{"sonnet":"claude-sonnet-5","opus":"claude-opus-5-5"}'` lets application code request `model="sonnet"` or `model="opus"`; the adapter sends the mapped full ID to Claude Code. Replace IDs with models available to your account.
 
 ### Claude Code runtime
 
