@@ -58,9 +58,38 @@ CSA_API_KEY=your-token uv run examples/langchain_tools.py
 
 ## Configuration
 
-Flags override environment settings. `CSA_HOST` defaults to `127.0.0.1`; `CSA_PORT` to `9001`. Set `CSA_API_KEY` to require a bearer token on model routes and readiness; it is required for non-loopback binding. Health and OpenAPI remain public. `CSA_MODELS` optionally contains a JSON object mapping advertised model aliases to CLI model names; unlisted request models are passed through. An empty configured catalogue returns an empty `/v1/models` list.
+Copy `.env.example` to `.env` for a complete, documented starting point. The adapter does not load dotenv files itself, so load it in your shell before starting the server:
 
-Copied settings: `CLAUDE_CODE_PATH` (default `claude`), `CLAUDE_CODE_CWD` (neutral temporary directory), `CLAUDE_CODE_TIMEOUT_SECONDS` (600), `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (32000), `CLAUDE_CODE_MAX_CONCURRENCY` (4), `CLAUDE_CODE_MAX_QUEUE_LENGTH` (20), and `CLAUDE_CODE_SESSION_INACTIVITY_WINDOW_SECONDS` (14400). Run one worker.
+```bash
+cp .env.example .env
+set -a && source .env && set +a
+uv run claude-subscription-adapter serve
+```
+
+Command-line flags take precedence over environment variables. Run one server worker so its in-memory queue and session state remain consistent.
+
+### Adapter server
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CSA_HOST` | `127.0.0.1` | Interface to bind. A non-loopback address requires `CSA_API_KEY`. |
+| `CSA_PORT` | `9001` | Listening port. The `--port` flag overrides it. |
+| `CSA_API_KEY` | Unset | Optional bearer token for chat, model, and readiness routes. Health and OpenAPI stay public. |
+| `CSA_MODELS` | `{}` | JSON object mapping public aliases to Claude Code model IDs. Unlisted models pass through; an empty object advertises no models. |
+
+For example, `CSA_MODELS='{"fast":"claude-haiku-4-5"}'` advertises `fast` while sending `claude-haiku-4-5` to the CLI.
+
+### Claude Code runtime
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CLAUDE_CODE_PATH` | `claude` | Claude Code executable to run. |
+| `CLAUDE_CODE_CWD` | Neutral temporary directory | Working directory for CLI child processes. Set it only when a specific directory is required. |
+| `CLAUDE_CODE_TIMEOUT_SECONDS` | `600` | Per-request CLI timeout in seconds, excluding queue wait. |
+| `CLAUDE_CODE_MAX_OUTPUT_TOKENS` | `32000` | Default maximum output-token cap sent to Claude Code. |
+| `CLAUDE_CODE_MAX_CONCURRENCY` | `4` | Maximum simultaneous CLI runs. |
+| `CLAUDE_CODE_MAX_QUEUE_LENGTH` | `20` | Maximum requests waiting for a CLI run slot. Further requests receive `429`. |
+| `CLAUDE_CODE_SESSION_INACTIVITY_WINDOW_SECONDS` | `14400` | Idle-session cleanup interval in seconds for opt-in session resume. |
 
 Endpoints: `POST /v1/chat/completions`, `GET /v1/models`, `/health`, `/ready`, and `/openapi.json`. Readiness checks CLI authentication without inference. Streaming includes stable response IDs, tool indexes, terminal finish reason and `[DONE]`; `stream_options.include_usage` enables a usage-only chunk. Errors use an `error` object. After SSE begins, failures are sent as `data: {"error": ...}` and the stream closes without a successful terminal marker.
 
