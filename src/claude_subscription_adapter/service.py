@@ -1,6 +1,6 @@
 """The seam LiteLLM calls: prepare once, run the transport, hand back a response or a stream of chunks."""
 
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
 from contextlib import aclosing
 from dataclasses import dataclass, replace
 from hashlib import sha256
@@ -286,7 +286,7 @@ class CompletionService:
         )
 
     async def _fold_run(
-        self, call: _PreparedCall
+        self, call: _PreparedCall, on_started: Callable[[float], None] | None = None
     ) -> AsyncGenerator[tuple[StreamState, tuple[GenericStreamingChunk, ...]], None]:
         """Both paths fold the same run and stop it the moment the turn ends on the caller's tools.
 
@@ -304,6 +304,7 @@ class CompletionService:
             conversation=call.cli_input.conversation,
             client_tools=call.client_tools,
             session=call.session,
+            on_started=on_started,
         )
         try:
             async for item in events:
@@ -336,10 +337,11 @@ class CompletionService:
         optional_params: object = None,
         timeout: object = None,
         request_metadata: object = None,
+        on_started: Callable[[float], None] | None = None,
     ) -> ModelResponse:
         call: Final = await self._prepare(model, messages, optional_params, timeout, request_metadata)
         state: StreamState = StreamState(client_tools=call.client_tools)  # rebind-ok: last state of the fold
-        async with aclosing(self._fold_run(call)) as runs:
+        async with aclosing(self._fold_run(call, on_started)) as runs:
             async for state, _ in runs:  # only the final state is needed
                 pass
         answer: Final = answer_of(state)
@@ -366,12 +368,13 @@ class CompletionService:
         optional_params: object = None,
         timeout: object = None,
         request_metadata: object = None,
+        on_started: Callable[[float], None] | None = None,
     ) -> AsyncIterator[GenericStreamingChunk]:
         """Stream folded events, closing the subprocess when iteration ends."""
         call: Final = await self._prepare(model, messages, optional_params, timeout, request_metadata)
         state: StreamState = StreamState(client_tools=call.client_tools)  # rebind-ok: last state of the fold
         # A client that stops reading mid-answer must still get the CLI child killed, not left to GC.
-        async with aclosing(self._fold_run(call)) as runs:
+        async with aclosing(self._fold_run(call, on_started)) as runs:
             async for state, chunks in runs:  # the final state closes the stream
                 for chunk in chunks:
                     yield chunk

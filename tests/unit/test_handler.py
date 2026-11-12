@@ -1,8 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncIterable
 from pathlib import Path
-from typing import Final
 
 import pytest
 
@@ -16,6 +14,7 @@ from claude_subscription_adapter.errors import (
     TimedOut,
     UnexpectedExit,
 )
+from claude_subscription_adapter.schemas import AdapterError as CustomLLMError
 from claude_subscription_adapter.service import CompletionService as ClaudeCodeCLI
 from claude_subscription_adapter.sessions import SessionStore
 from claude_subscription_adapter.streaming import assemble_answer, stream_chunks
@@ -23,9 +22,7 @@ from claude_subscription_adapter.transport import (
     DEFAULT_MAX_CONCURRENCY,
     DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_TIMEOUT_SECONDS,
-    spawn_subprocess,
 )
-from claude_subscription_adapter.schemas import AdapterError as CustomLLMError
 
 _FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -33,7 +30,7 @@ _FIXTURES = Path(__file__).parents[1] / "fixtures"
 def _lines(name):
     """Replay a run recorded from the real CLI, so no handler test invents CLI output."""
     text = (_FIXTURES / name).read_text(encoding="utf-8")
-    return [f"{line}\n".encode("utf-8") for line in text.splitlines() if line.strip()]
+    return [f"{line}\n".encode() for line in text.splitlines() if line.strip()]
 
 
 def _events(name):
@@ -118,17 +115,9 @@ async def _collect(handler, *, model="claude-sonnet-4-5", messages=None, **kwarg
     return [chunk async for chunk in handler.astreaming(model=model, messages=turns, **kwargs)]
 
 
-
-
 # --------------------------------------------------------------------------------------
 # The shape the dispatcher requires
 # --------------------------------------------------------------------------------------
-
-
-
-
-
-
 
 
 # --------------------------------------------------------------------------------------
@@ -443,8 +432,6 @@ async def test_a_caller_tool_call_streams_one_chunk_per_call_then_closes_with_to
     assert recording.processes[0].returncode == -9
 
 
-
-
 @pytest.mark.asyncio
 async def test_caller_tools_reach_the_cli_through_the_stub_server():
     spawner = FakeSpawner(lines=DELTA_LINES)
@@ -617,8 +604,6 @@ def test_every_failure_variant_is_exercised_by_the_public_error_tests():
     assert covered == set(CLIFailure.__args__)
 
 
-
-
 @pytest.mark.asyncio
 async def test_a_streaming_failure_raises_only_after_the_earlier_chunks_were_delivered():
     """A truncated answer with no error would look like a complete one to the caller."""
@@ -701,23 +686,9 @@ def test_the_default_environment_is_the_real_process_environment():
     assert ClaudeCodeCLI(spawner=FakeSpawner())._environment is environ
 
 
-
-
-
-
 # --------------------------------------------------------------------------------------
 # Options LiteLLM injects itself, seen through the real dispatcher
 # --------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
 
 
 @pytest.mark.asyncio
@@ -746,10 +717,6 @@ async def test_conflicting_token_limits_are_refused_on_the_streaming_path_too():
         await _collect(_handler(FakeSpawner(lines=DELTA_LINES)), optional_params=both)
 
     assert caught.value.status_code == 400
-
-
-
-
 
 
 @pytest.mark.asyncio
@@ -1182,8 +1149,6 @@ async def test_json_user_without_session_id_falls_back_to_prompt_cache_key():
     assert "--resume" in args
 
 
-
-
 @pytest.mark.asyncio
 async def test_concurrent_first_requests_sharing_a_new_cache_key_use_one_session_through_the_handler():
     """Two near-simultaneous *first* requests for a brand-new key must resolve to one session UUID.
@@ -1206,5 +1171,3 @@ async def test_concurrent_first_requests_sharing_a_new_cache_key_use_one_session
 
     session_ids = {_session_id(spawner.calls[0]["args"]) for spawner in spawners}
     assert len(session_ids) == 1
-
-

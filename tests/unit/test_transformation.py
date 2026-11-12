@@ -1,4 +1,5 @@
 import json
+from itertools import pairwise
 
 import pytest
 
@@ -94,7 +95,7 @@ def test_three_consecutive_same_role_messages_merge_into_one_turn():
 def test_roles_strictly_alternate(messages):
     conversation = prepare_cli_input(messages).conversation
 
-    assert all(a.role != b.role for a, b in zip(conversation, conversation[1:]))
+    assert all(a.role != b.role for a, b in pairwise(conversation))
 
 
 def test_list_content_text_parts_extracted_in_order():

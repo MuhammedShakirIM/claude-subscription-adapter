@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from claude_subscription_adapter.tools import read_client_tools
 from claude_subscription_adapter.streaming import (
     DEFAULT_FINISH_REASON,
     StreamState,
@@ -12,6 +11,7 @@ from claude_subscription_adapter.streaming import (
     close_stream,
     stream_chunks,
 )
+from claude_subscription_adapter.tools import read_client_tools
 
 _FIXTURES = Path(__file__).parents[1] / "fixtures"
 

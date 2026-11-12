@@ -7,7 +7,7 @@ import os
 import re
 import signal
 import tempfile
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from math import ceil, isfinite
@@ -39,6 +39,19 @@ STDOUT_LINE_LIMIT_BYTES: Final = 64 * 1024 * 1024
 # The CLI tells the model its working folder, plus git details when that folder is a repo. Running from the
 # proxy's own checkout would show every caller the server's project name, branch and commits.
 DEFAULT_WORKING_DIRECTORY: Final = str((Path(tempfile.gettempdir()) / "claude-code-cli").resolve())
+
+# Claude Code can be redirected to API-key, gateway, Bedrock, Vertex, and Foundry providers through its environment.
+# The adapter's contract is to use the OS user's Claude subscription login, never credentials inherited from its host.
+_ALTERNATE_PROVIDER_PREFIXES: Final = ("ANTHROPIC_", "AWS_", "AZURE_", "GOOGLE_", "VERTEX_")
+_ALTERNATE_PROVIDER_SWITCHES: Final = frozenset(
+    {
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+        "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+        "CLAUDE_CODE_SKIP_VERTEX_AUTH",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,10 +284,14 @@ def build_process_env(
     `CLAUDE_CODE_SKIP_PROMPT_HISTORY` also stops the CLI saving the transcript `--resume` reads, so a run
     carrying a session must not have it, not even inherited from the proxy's own environment.
     """
-    dropped: Final = frozenset(
-        ("ANTHROPIC_API_KEY", "CLAUDE_CODE_SKIP_PROMPT_HISTORY") if persist_session else ("ANTHROPIC_API_KEY",)
-    )
-    inherited: Final = {key: value for key, value in environment.items() if key not in dropped}
+    dropped: Final = frozenset(("CLAUDE_CODE_SKIP_PROMPT_HISTORY",)) if persist_session else frozenset()
+    inherited: Final = {
+        key: value
+        for key, value in environment.items()
+        if key not in dropped
+        and key not in _ALTERNATE_PROVIDER_SWITCHES
+        and not key.startswith(_ALTERNATE_PROVIDER_PREFIXES)
+    }
     return {
         **inherited,
         "CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(settings.max_output_tokens),
@@ -449,6 +466,7 @@ async def stream_cli(
     include_partial_messages: bool = True,
     client_tools: Sequence[ClientTool] = (),
     session: SessionDecision | None = None,
+    on_started: Callable[[float], None] | None = None,
 ) -> AsyncGenerator[Mapping[str, object] | CLIFailure, None]:
     """Stream one CLI invocation. Events arrive as they are read; a failure arrives as the last item."""
     prompt_file: str | None = None  # rebind-ok: assigned inside the try so a later raise still unlinks it
@@ -466,10 +484,13 @@ async def stream_cli(
         )
         env: Final = build_process_env(environment, settings, persist_session=session is not None)
 
+        queued_at: Final = asyncio.get_running_loop().time()
         async with _slot(settings) as refusal:
             if refusal is not None:
                 yield refusal
                 return
+            if on_started is not None:
+                on_started(asyncio.get_running_loop().time() - queued_at)
             try:
                 if settings.working_directory == DEFAULT_WORKING_DIRECTORY:
                     Path(DEFAULT_WORKING_DIRECTORY).mkdir(exist_ok=True)
