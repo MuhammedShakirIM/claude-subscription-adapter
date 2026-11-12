@@ -412,13 +412,24 @@ def test_out_of_range_cap_falls_back_to_the_default(raw):
     assert read_settings({"CLAUDE_CODE_MAX_CONCURRENCY": raw}).max_concurrency == DEFAULT_MAX_CONCURRENCY
 
 
-def test_environment_builder_sets_output_tokens_and_drops_the_api_key():
+def test_environment_builder_sets_output_tokens_and_drops_alternate_provider_credentials_and_routing():
     env = build_process_env(
-        {"ANTHROPIC_API_KEY": "sk-leak", "PATH": "/usr/bin"},
+        {
+            "ANTHROPIC_API_KEY": "sk-leak",
+            "ANTHROPIC_BASE_URL": "https://gateway.example",
+            "AWS_ACCESS_KEY_ID": "access-key",
+            "GOOGLE_APPLICATION_CREDENTIALS": "/tmp/credentials.json",
+            "AZURE_OPENAI_API_KEY": "azure-key",
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "CLAUDE_CODE_USE_VERTEX": "1",
+            "CLAUDE_CODE_USE_FOUNDRY": "1",
+            "PATH": "/usr/bin",
+        },
         CLISettings(max_output_tokens=999),
     )
 
-    assert "ANTHROPIC_API_KEY" not in env
+    assert not any(key.startswith(("ANTHROPIC_", "AWS_", "AZURE_", "GOOGLE_", "VERTEX_")) for key in env)
+    assert not {"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"} & env.keys()
     assert env["PATH"] == "/usr/bin"
     assert env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "999"
 

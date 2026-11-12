@@ -2,10 +2,11 @@
 
 import asyncio
 import json
+import logging
 import secrets
 from contextlib import asynccontextmanager, suppress
 from datetime import timedelta
-from time import time
+from time import monotonic, time
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Request
@@ -18,6 +19,8 @@ from .schemas import AdapterError, ChatRequest, ModelResponse
 from .service import CompletionService
 from .sessions import run_sweep_forever
 from .transport import build_process_env, read_settings, transcripts_dir
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(config=None, service=None):
@@ -117,6 +120,30 @@ def create_app(config=None, service=None):
 
     @app.post("/v1/chat/completions", response_model=ModelResponse, dependencies=[Depends(authorize)])
     async def completions(body: ChatRequest):
+        request_id = "chatcmpl-" + uuid4().hex
+        requested_at = monotonic()
+        started_at: float | None = None
+        queue_wait_seconds: float | None = None
+        outcome = "error"
+
+        def on_started(wait_seconds: float) -> None:
+            nonlocal queue_wait_seconds, started_at
+            queue_wait_seconds = wait_seconds
+            started_at = monotonic()
+
+        def log_completion() -> None:
+            logger.info(
+                "adapter request completed",
+                extra={
+                    "request_id": request_id,
+                    "model": body.model,
+                    "queue_wait_seconds": queue_wait_seconds,
+                    "execution_seconds": None if started_at is None else monotonic() - started_at,
+                    "request_seconds": monotonic() - requested_at,
+                    "outcome": outcome,
+                },
+            )
+
         data = body.model_dump(exclude_none=True)
         model = config.models.get(body.model, body.model)
         options = {k: v for k, v in data.items() if k not in {"model", "messages", "stream", "metadata"}}
@@ -127,17 +154,46 @@ def create_app(config=None, service=None):
             "request_metadata": {"metadata": body.metadata or {}},
         }
         if not body.stream:
-            response = await service.acompletion(**kwargs)
-            response.model = body.model
-            return response
-        stream = service.astreaming(**kwargs)
+            try:
+                response = await service.acompletion(**kwargs, on_started=on_started)
+                response.model = body.model
+                outcome = "success"
+                return response
+            except asyncio.CancelledError:
+                outcome = "cancelled"
+                raise
+            except AdapterError:
+                outcome = "adapter_error"
+                raise
+            except Exception:
+                outcome = "unexpected_error"
+                logger.exception("adapter request failed", extra={"request_id": request_id, "model": body.model})
+                raise
+            finally:
+                log_completion()
+        stream = service.astreaming(**kwargs, on_started=on_started)
         try:
             first = await anext(stream)
-        except BaseException:
+        except asyncio.CancelledError:
             await stream.aclose()
+            outcome = "cancelled"
+            log_completion()
+            raise
+        except AdapterError:
+            await stream.aclose()
+            outcome = "adapter_error"
+            log_completion()
+            raise
+        except Exception:
+            await stream.aclose()
+            outcome = "unexpected_error"
+            logger.exception(
+                "adapter stream failed before response", extra={"request_id": request_id, "model": body.model}
+            )
+            log_completion()
             raise
         identity = {
-            "id": "chatcmpl-" + uuid4().hex,
+            "id": request_id,
             "object": "chat.completion.chunk",
             "created": int(time()),
             "model": body.model,
@@ -153,6 +209,7 @@ def create_app(config=None, service=None):
             return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
 
         async def generate():
+            nonlocal outcome
             try:
                 yield event({"role": "assistant", "content": ""})
                 chunk = first
@@ -171,10 +228,23 @@ def create_app(config=None, service=None):
                     except StopAsyncIteration:
                         break
                 yield "data: [DONE]\n\n"
+                outcome = "success"
+            except asyncio.CancelledError:
+                outcome = "cancelled"
+                raise
             except AdapterError as exc:
+                outcome = "adapter_error"
                 yield "data: " + json.dumps(exc.body()) + "\n\n"
+            except Exception:
+                outcome = "unexpected_error"
+                logger.exception("adapter stream failed", extra={"request_id": request_id, "model": body.model})
+                error = AdapterError(status_code=500, message="Unexpected adapter failure", code="internal_error")
+                yield "data: " + json.dumps(error.body()) + "\n\n"
             finally:
-                await stream.aclose()
+                try:
+                    await stream.aclose()
+                finally:
+                    log_completion()
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

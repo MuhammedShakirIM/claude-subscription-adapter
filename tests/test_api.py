@@ -1,7 +1,8 @@
 import json
-from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+
 from claude_subscription_adapter.api import create_app
 from claude_subscription_adapter.config import ServerConfig
 from claude_subscription_adapter.service import CompletionService
@@ -103,3 +104,53 @@ async def test_validation_auth_and_schema():
         )
         assert r.status_code == 400
         assert "error" in r.json()
+
+
+@pytest.mark.parametrize("models", [[], {"": "sonnet"}, {"sonnet": ""}, {"sonnet": 1}])
+def test_invalid_model_aliases_are_rejected(models):
+    with pytest.raises(ValueError, match="CSA_MODELS"):
+        ServerConfig(models=models).validate()
+
+
+def test_invalid_model_alias_json_is_rejected_at_startup(monkeypatch):
+    monkeypatch.setenv("CSA_MODELS", "[]")
+    with pytest.raises(ValueError, match="CSA_MODELS"):
+        ServerConfig.from_env()
+
+
+async def test_unexpected_streaming_failure_emits_an_error_event_without_done(caplog):
+    caplog.set_level("INFO")
+
+    class FailingService:
+        async def astreaming(self, **kwargs):
+            kwargs["on_started"](0.01)
+            yield {"text": "partial", "tool_use": None, "is_finished": False, "finish_reason": "", "usage": None}
+            raise RuntimeError("private failure details")
+
+    app = create_app(ServerConfig(), FailingService())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={"model": "test-model", "messages": [{"role": "user", "content": "hello"}], "stream": True},
+        )
+
+    events = [line[6:] for line in response.text.splitlines() if line.startswith("data: ")]
+    assert response.status_code == 200
+    assert "partial" in response.text
+    assert events[-1] == json.dumps(
+        {
+            "error": {
+                "message": "Unexpected adapter failure",
+                "type": "server_error",
+                "param": None,
+                "code": "internal_error",
+            }
+        }
+    )
+    assert "[DONE]" not in response.text
+    record = next(record for record in caplog.records if record.message == "adapter request completed")
+    assert record.request_id.startswith("chatcmpl-")
+    assert record.model == "test-model"
+    assert record.queue_wait_seconds == 0.01
+    assert record.execution_seconds is not None
+    assert record.outcome == "unexpected_error"

@@ -36,11 +36,11 @@ Endpoints: `POST /v1/chat/completions`, `GET /v1/models`, `/health`, `/ready`, a
 
 ## Compatibility boundaries
 
-This is a faithful extraction, currently verified with fixtures and subprocess fakes. Live model parity and the full LangChain/LangGraph matrix remain release gates; examples are supplied but are not evidence of live compatibility.
+This is a faithful extraction verified with fixture, subprocess, installed-wheel, and authenticated local-CLI checks. Live validation covers OpenAI sync/async streaming, complete function-tool loops, LangChain invoke/stream/async variants, and LangGraph tool execution with checkpoint continuation.
 
 The inherited provider silently ignores sampling/structured-output controls. Token limits can raise the internal configured cap, but cannot lower it. `tool_choice="none"` suppresses tools; required/named choices and `parallel_tool_calls=false` are not enforced. Invalid tool definitions retain the source's skip behavior. Strict tool schemas are not guaranteed. WebSearch stays enabled; built-in file and shell tools are excluded.
 
-Requests are stateless by default. `prompt_cache_key` opts into copied session behavior; `metadata.user_id` containing a JSON string with `session_id` takes precedence. A LangGraph thread ID alone does not enable resume. Restart loses the in-memory mapping. The transport removes `ANTHROPIC_API_KEY`; review other routing environment variables before use where alternate backends are configured.
+Requests are stateless by default. `prompt_cache_key` opts into copied session behavior; `metadata.user_id` containing a JSON string with `session_id` takes precedence. A LangGraph thread ID alone does not enable resume. Restart loses the in-memory mapping. The transport removes alternate Anthropic, Bedrock, Vertex, and Foundry credentials and routing configuration from the CLI child so it uses the local Claude subscription login.
 
 ## Development
 
@@ -50,4 +50,4 @@ uv run ruff check src
 uv build
 ```
 
-See `project-docs/migration-manifest.md` for provenance, intentional differences and remaining verification.
+See `project-docs/migration-manifest.md` for provenance and intentional differences, and `project-docs/review-notes.md` for release evidence.
