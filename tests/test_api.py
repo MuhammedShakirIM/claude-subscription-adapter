@@ -94,10 +94,20 @@ async def test_http_tool_round_trip(stream):
 
 
 async def test_validation_auth_and_schema():
-    app = create_app(ServerConfig(api_key="secret"))
+    app = create_app(ServerConfig(api_key="secret", models={"sonnet": "claude-sonnet-5"}))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         assert (await c.get("/health")).status_code == 200
         assert (await c.get("/v1/models")).status_code == 401
+        models = await c.get("/v1/models", headers={"Authorization": "Bearer secret"})
+        assert models.json()["data"] == [
+            {
+                "id": "sonnet",
+                "object": "model",
+                "created": 0,
+                "owned_by": "local",
+                "claude_code_model": "claude-sonnet-5",
+            }
+        ]
         assert (await c.get("/openapi.json")).json()["paths"]["/v1/chat/completions"]
         r = await c.post(
             "/v1/chat/completions", headers={"Authorization": "Bearer secret"}, json={"model": "x", "messages": []}

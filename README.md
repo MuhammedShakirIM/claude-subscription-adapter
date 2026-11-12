@@ -90,7 +90,31 @@ For example, `CSA_MODELS='{"sonnet":"claude-sonnet-5","opus":"claude-opus-5-5"}'
 | `CLAUDE_CODE_MAX_QUEUE_LENGTH` | `20` | Maximum requests waiting for a CLI run slot. Further requests receive `429`. |
 | `CLAUDE_CODE_SESSION_INACTIVITY_WINDOW_SECONDS` | `14400` | Idle-session cleanup interval in seconds for opt-in session resume. |
 
-Endpoints: `POST /v1/chat/completions`, `GET /v1/models`, `/health`, `/ready`, and `/openapi.json`. Readiness checks CLI authentication without inference. Streaming includes stable response IDs, tool indexes, terminal finish reason and `[DONE]`; `stream_options.include_usage` enables a usage-only chunk. Errors use an `error` object. After SSE begins, failures are sent as `data: {"error": ...}` and the stream closes without a successful terminal marker.
+### Endpoints
+
+| Method | Route | Authentication | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/v1/chat/completions` | Required when `CSA_API_KEY` is set | OpenAI-compatible chat completions, including function tools and optional SSE streaming. |
+| `GET` | `/v1/models` | Required when `CSA_API_KEY` is set | Lists configured aliases in `id` and their CLI targets in `claude_code_model`. |
+| `GET` | `/health` | Never required | Process liveness check. |
+| `GET` | `/ready` | Required when `CSA_API_KEY` is set | Verifies Claude Code is available and authenticated without running inference. |
+| `GET` | `/openapi.json` | Never required | OpenAPI schema for the supported HTTP surface. |
+
+Inspect configured model aliases and their Claude Code targets with formatted JSON:
+
+```bash
+curl -s http://localhost:9001/v1/models | jq
+```
+
+When `CSA_API_KEY` is set, include the bearer token:
+
+```bash
+curl -s \
+  -H "Authorization: Bearer $CSA_API_KEY" \
+  http://localhost:9001/v1/models | jq
+```
+
+Streaming includes stable response IDs, tool indexes, a terminal finish reason, and `[DONE]`. Set `stream_options.include_usage` to receive a usage-only chunk. Errors use an `error` object; after SSE begins, failures are sent as `data: {"error": ...}` and the stream closes without a successful terminal marker.
 
 ## Compatibility boundaries
 
