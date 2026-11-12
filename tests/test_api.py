@@ -140,6 +140,22 @@ def test_dotenv_is_loaded_without_overwriting_environment(monkeypatch, tmp_path)
     assert config.models == {"alias": "from-dotenv"}
 
 
+def test_default_models_without_dotenv(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CSA_MODELS", raising=False)
+
+    expected = {"sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+    assert ServerConfig.from_env().models == expected
+    assert ServerConfig().models == expected
+
+
+def test_explicit_empty_model_mapping_overrides_defaults(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CSA_MODELS", "{}")
+
+    assert ServerConfig.from_env().models == {}
+
+
 async def test_unexpected_streaming_failure_emits_an_error_event_without_done(caplog):
     caplog.set_level("INFO")
 
