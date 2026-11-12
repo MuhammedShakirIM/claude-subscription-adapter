@@ -118,6 +118,18 @@ def test_invalid_model_alias_json_is_rejected_at_startup(monkeypatch):
         ServerConfig.from_env()
 
 
+def test_dotenv_is_loaded_without_overwriting_environment(monkeypatch, tmp_path):
+    (tmp_path / ".env").write_text('CSA_PORT=9102\nCSA_MODELS={"alias":"from-dotenv"}\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CSA_MODELS", raising=False)
+    monkeypatch.setenv("CSA_PORT", "9103")
+
+    config = ServerConfig.from_env()
+
+    assert config.port == 9103
+    assert config.models == {"alias": "from-dotenv"}
+
+
 async def test_unexpected_streaming_failure_emits_an_error_event_without_done(caplog):
     caplog.set_level("INFO")
 

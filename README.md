@@ -58,11 +58,10 @@ CSA_API_KEY=your-token uv run examples/langchain_tools.py
 
 ## Configuration
 
-Copy `.env.example` to `.env` for a complete, documented starting point. The adapter does not load dotenv files itself, so load it in your shell before starting the server:
+Copy `.env.example` to `.env` for a complete, documented starting point. The adapter loads `.env` from its working directory at startup; shell environment variables still take precedence.
 
 ```bash
 cp .env.example .env
-set -a && source .env && set +a
 uv run claude-subscription-adapter serve
 ```
 

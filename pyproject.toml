@@ -9,7 +9,13 @@ description = "An OpenAI-compatible local HTTP adapter for the Claude Code CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "pydantic>=2.10,<3", "mcp>=2.2,<3"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "pydantic>=2.10,<3",
+    "mcp>=2.2,<3",
+    "python-dotenv>=1.0,<2",
+]
 
 [project.scripts]
 claude-subscription-adapter = "claude_subscription_adapter.cli:main"

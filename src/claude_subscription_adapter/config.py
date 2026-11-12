@@ -2,6 +2,9 @@ import json
 import os
 from dataclasses import dataclass, field
 from ipaddress import ip_address
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 @dataclass
@@ -29,6 +32,8 @@ class ServerConfig:
 
     @classmethod
     def from_env(cls):
+        # Local configuration is convenient for development, while real environment variables remain authoritative.
+        load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
         raw_models = os.getenv("CSA_MODELS", "{}")
         try:
             models = json.loads(raw_models)
