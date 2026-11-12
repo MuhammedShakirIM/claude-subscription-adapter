@@ -26,6 +26,36 @@ print(response.choices[0].message.content)
 
 Use `AsyncOpenAI` for asynchronous calls and `stream=True` for SSE. The server accepts text messages, system/developer prompts, assistant function calls and correlated tool results. Applications execute their own tools. Runnable complete tool-loop examples are in `examples/python_tools.py`, `examples/langchain_tools.py`, and `examples/langgraph_tools.py` (development dependencies include these clients).
 
+## Run the examples
+
+The three scripts in `examples/` are runnable end-to-end function-tool loops. They use the local adapter, ask Claude to call a `multiply` function, execute that function in the client process, send its result back, and print the final answer.
+
+Start the adapter in one terminal:
+
+```bash
+uv run claude-subscription-adapter serve
+```
+
+Then, from a second terminal in this checkout, run one of the examples:
+
+```bash
+uv run examples/python_tools.py
+uv run examples/langchain_tools.py
+uv run examples/langgraph_tools.py
+```
+
+All examples default to model `sonnet` and `http://localhost:9001/v1`. Override either when needed:
+
+```bash
+CSA_MODEL=your-model CSA_BASE_URL=http://localhost:9100/v1 uv run examples/python_tools.py
+```
+
+When server authentication is enabled, also supply the configured token as `CSA_API_KEY`:
+
+```bash
+CSA_API_KEY=your-token uv run examples/langchain_tools.py
+```
+
 ## Configuration
 
 Flags override environment settings. `CSA_HOST` defaults to `127.0.0.1`; `CSA_PORT` to `9001`. Set `CSA_API_KEY` to require a bearer token on model routes and readiness; it is required for non-loopback binding. Health and OpenAPI remain public. `CSA_MODELS` optionally contains a JSON object mapping advertised model aliases to CLI model names; unlisted request models are passed through. An empty configured catalogue returns an empty `/v1/models` list.
