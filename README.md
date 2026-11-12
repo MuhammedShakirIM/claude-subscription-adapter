@@ -85,10 +85,13 @@ print(response.choices[0].message.content)
 `api_key="local"` is a placeholder while server authentication is disabled.
 If `CSA_API_KEY` is configured, supply that exact value instead.
 
-### Choose models explicitly
+### Default models and optional overrides
 
-Model names are passed through to Claude Code unless you configure aliases.
-For a stable application-facing model name, copy the example environment file:
+No `.env` file is required. By default, `sonnet` maps to `claude-sonnet-5-5`
+and `opus` maps to `claude-opus-5-5`. Other model names pass through to Claude
+Code unchanged.
+
+To customize these aliases, optionally copy the example environment file:
 
 ```bash
 cp .env.example .env
@@ -101,8 +104,8 @@ example:
 CSA_MODELS='{"sonnet":"claude-sonnet-5-5","opus":"claude-opus-5-5"}'
 ```
 
-With that configuration, `model="sonnet"` is sent to Claude Code as
-`claude-sonnet-5-5`. Shell environment variables override `.env`; `--host`
+`CSA_MODELS` replaces the complete default mapping; set it to `{}` to disable
+aliases. Shell environment variables override `.env`; `--host`
 and `--port` override their corresponding environment variables.
 
 ## Web search
@@ -299,7 +302,7 @@ when it contains `CSA_API_KEY`.
 | `CSA_HOST` | `127.0.0.1` | Bind address. A non-loopback address requires `CSA_API_KEY`. |
 | `CSA_PORT` | `9001` | Listening port. `serve --port` takes precedence. |
 | `CSA_API_KEY` | unset | Bearer token required by chat, models, and ready endpoints when set. |
-| `CSA_MODELS` | `{}` | JSON object mapping public aliases to Claude Code model names. |
+| `CSA_MODELS` | `{"sonnet":"claude-sonnet-5-5","opus":"claude-opus-5-5"}` | JSON object replacing the default model aliases. |
 | `CLAUDE_CODE_PATH` | `claude` | Claude Code executable path or command name. |
 | `CLAUDE_CODE_CWD` | neutral temporary directory | Working directory given to Claude Code. Leave empty unless a specific directory is required. |
 | `CLAUDE_CODE_TIMEOUT_SECONDS` | `600` | Per-request CLI timeout, excluding time spent queued. |

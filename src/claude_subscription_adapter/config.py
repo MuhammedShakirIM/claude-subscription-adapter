@@ -6,13 +6,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+DEFAULT_MODELS = {"sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+
 
 @dataclass
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 9001
     api_key: str | None = None
-    models: dict[str, str] = field(default_factory=dict)
+    models: dict[str, str] = field(default_factory=lambda: DEFAULT_MODELS.copy())
 
     def validate(self):
         try:
@@ -34,7 +36,7 @@ class ServerConfig:
     def from_env(cls):
         # Local configuration is convenient for development, while real environment variables remain authoritative.
         load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-        raw_models = os.getenv("CSA_MODELS", "{}")
+        raw_models = os.getenv("CSA_MODELS", json.dumps(DEFAULT_MODELS))
         try:
             models = json.loads(raw_models)
         except json.JSONDecodeError as exc:
