@@ -115,7 +115,16 @@ def create_app(config=None, service=None):
     async def models():
         return {
             "object": "list",
-            "data": [{"id": name, "object": "model", "created": 0, "owned_by": "local"} for name in config.models],
+            "data": [
+                {
+                    "id": alias,
+                    "object": "model",
+                    "created": 0,
+                    "owned_by": "local",
+                    "claude_code_model": model,
+                }
+                for alias, model in config.models.items()
+            ],
         }
 
     @app.post("/v1/chat/completions", response_model=ModelResponse, dependencies=[Depends(authorize)])

@@ -94,10 +94,20 @@ async def test_http_tool_round_trip(stream):
 
 
 async def test_validation_auth_and_schema():
-    app = create_app(ServerConfig(api_key="secret"))
+    app = create_app(ServerConfig(api_key="secret", models={"sonnet": "claude-sonnet-5"}))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         assert (await c.get("/health")).status_code == 200
         assert (await c.get("/v1/models")).status_code == 401
+        models = await c.get("/v1/models", headers={"Authorization": "Bearer secret"})
+        assert models.json()["data"] == [
+            {
+                "id": "sonnet",
+                "object": "model",
+                "created": 0,
+                "owned_by": "local",
+                "claude_code_model": "claude-sonnet-5",
+            }
+        ]
         assert (await c.get("/openapi.json")).json()["paths"]["/v1/chat/completions"]
         r = await c.post(
             "/v1/chat/completions", headers={"Authorization": "Bearer secret"}, json={"model": "x", "messages": []}
@@ -116,6 +126,18 @@ def test_invalid_model_alias_json_is_rejected_at_startup(monkeypatch):
     monkeypatch.setenv("CSA_MODELS", "[]")
     with pytest.raises(ValueError, match="CSA_MODELS"):
         ServerConfig.from_env()
+
+
+def test_dotenv_is_loaded_without_overwriting_environment(monkeypatch, tmp_path):
+    (tmp_path / ".env").write_text('CSA_PORT=9102\nCSA_MODELS={"alias":"from-dotenv"}\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CSA_MODELS", raising=False)
+    monkeypatch.setenv("CSA_PORT", "9103")
+
+    config = ServerConfig.from_env()
+
+    assert config.port == 9103
+    assert config.models == {"alias": "from-dotenv"}
 
 
 async def test_unexpected_streaming_failure_emits_an_error_event_without_done(caplog):
