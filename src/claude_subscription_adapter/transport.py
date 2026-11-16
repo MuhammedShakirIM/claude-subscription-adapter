@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import signal
+import subprocess
 import tempfile
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -128,6 +129,12 @@ class _SubprocessCLIProcess:
             except ProcessLookupError:
                 pass
         elif self.process.returncode is None:
+            # claude.cmd spawns a child node.exe that keeps the pipes open; kill the whole tree.
+            subprocess.run(
+                ["taskkill", "/PID", str(self.process.pid), "/T", "/F"],
+                capture_output=True,
+                check=False,
+            )
             self.process.kill()
 
     async def wait(self) -> int:
